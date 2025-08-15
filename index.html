@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신오쿠보 스마트 가이드 - AI 맛집 추천</title>
+    
+    <!-- PWA Meta -->
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoi7Iug7Jik7L+g67O0IOyKpOunjO2KuCDqsIDsnbTrk5wiLCJzaG9ydF9uYW1lIjoi7Iug7Jik7L+g67O0IOqwgOydtOuTnCIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMWYyOTM3IiwidGhlbWVfY29sb3IiOiIjMWYyOTM3IiwiaWNvbnMiOlt7InNyYyI6ImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjNhV1IwYUQwaU1USTRJaUJvWldsbmFIUTlJakkxOUNJZ1ptbHNiRDBpYm05dVpTSWdlRzFzYm5NOUltaDBkSEE2THk5M2QyY3Vkek11YjNKbkx6SXdNREF2YzNabklpQjJhV1YzUW05NFBTSXdJREFnTVRJNElESTFOQ0krUEhCaGRHZ2dabWxzYkQwaVl6QTJPREZqTWpJaUlHUTlJazB6TUNBek1pQklPVGhqTXpreU1qWXRMamN6SURrekxqSTRMUzQyTVNCME1uZ3hMalF6SURJdU16RWdORGNnTkM0NU5TQkhZek01TGprZ05TNDNOUzFrWkRVZ01UVXRkRGx3TWloY2JteDZMakVnTFRNdU1UZ3RRakkzTlM0eUlDMU1MVGN1TVRNaUxDQW5kV2xxTTIxNE4yMW1WbTUyYjJsTGFpYz0ifV19">
+    
+    <!-- External Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans JP', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .neon-border {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .floating-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .pulse-glow {
+            animation: pulse-glow 2s infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.6); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        #map {
+            height: 400px;
+            border-radius: 16px;
+            z-index: 1;
+        }
+        
+        .restaurant-marker {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .top-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        
+        .side-panel {
+            position: fixed;
+            right: 10px;
+            top: 120px;
+            width: 280px;
+            max-height: 70vh;
+            overflow-y: auto;
+            z-index: 999;
+        }
+        
+        @media (max-width: 768px) {
+            .side-panel {
+                position: relative;
+                right: auto;
+                top: auto;
+                width: 100%;
+                max-height: none;
+                margin-top: 20px;
+            }
+        }
+        
+        .restaurant-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .restaurant-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .language-btn {
+            transition: all 0.3s ease;
+        }
+        
+        .language-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .loading-spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Overlay with Stats -->
+    <div class="top-overlay">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-white font-bold text-lg">
+                        <i class="fas fa-utensils mr-2"></i>
+                        <span id="app-title">신오쿠보 스마트 가이드</span>
+                    </h1>
+                    <div class="loading-spinner" id="loading-indicator"></div>
+                </div>
+                
+                <!-- Language Selector -->
+                <div class="flex space-x-1">
+                    <button class="language-btn px-2 py-1 text-xs bg-blue-500 text-white rounded" onclick="changeLanguage('ko')">한</button>
+                    <button class="language-btn px-2 py-1 text-xs bg-gray-600 text-white rounded" onclick="changeLanguage('en')">EN</button>
+                    <button class="language-btn px-2 py-1 text-xs bg-gray-600 text-white rounded" onclick="changeLanguage('ja')">日</button>
+                    <button class="language-btn px-2 py-1 text-xs bg-gray-600 text-white rounded" onclick="changeLanguage('zh')">中</button>
+                    <button class="language-btn px-2 py-1 text-xs bg-gray-600 text-white rounded" onclick="changeLanguage('th')">ไทย</button>
+                </div>
+            </div>
+            
+            <!-- Stats Charts -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="glass-morphism p-3">
+                    <canvas id="categoryChart" style="height: 80px;"></canvas>
+                </div>
+                <div class="glass-morphism p-3">
+                    <canvas id="ratingChart" style="height: 80px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="pt-40 pb-6">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Map Section -->
+                <div class="lg:col-span-2">
+                    <div class="glass-morphism p-4 neon-border floating-animation">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-white font-semibold text-lg">
+                                <i class="fas fa-map-marker-alt mr-2"></i>
+                                <span id="map-title">실시간 인기 맛집 지도</span>
+                            </h2>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 bg-green-500 text-white rounded-lg text-sm pulse-glow" onclick="refreshData()">
+                                    <i class="fas fa-sync-alt mr-1"></i>
+                                    <span id="refresh-btn">새로고침</span>
+                                </button>
+                                <select id="filter-select" class="px-2 py-1 bg-gray-700 text-white rounded-lg text-sm" onchange="filterRestaurants()">
+                                    <option value="all">전체</option>
+                                    <option value="korean">한식</option>
+                                    <option value="bbq">고기</option>
+                                    <option value="cafe">카페</option>
+                                    <option value="street">분식</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="map"></div>
+                    </div>
+                </div>
+                
+                <!-- Side Panel - Top 10 Restaurants -->
+                <div class="lg:col-span-1">
+                    <div class="glass-morphism p-4 side-panel lg:relative lg:right-auto lg:top-auto lg:w-auto">
+                        <h3 class="text-white font-semibold text-lg mb-4">
+                            <i class="fas fa-fire mr-2 text-orange-500"></i>
+                            <span id="top10-title">실시간 인기 TOP 10</span>
+                        </h3>
+                        <div id="top-restaurants" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Info Section -->
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Social Media Activity -->
+                <div class="glass-morphism p-4">
+                    <h3 class="text-white font-semibold mb-4">
+                        <i class="fab fa-twitter mr-2 text-blue-400"></i>
+                        <span id="social-title">소셜미디어 실시간 동향</span>
+                    </h3>
+                    <div id="social-feed" class="space-y-2"></div>
+                </div>
+                
+                <!-- AI Recommendations -->
+                <div class="glass-morphism p-4">
+                    <h3 class="text-white font-semibold mb-4">
+                        <i class="fas fa-robot mr-2 text-purple-400"></i>
+                        <span id="ai-title">AI 맞춤 추천</span>
+                    </h3>
+                    <div id="ai-recommendations" class="space-y-2"></div>
+                </div>
+            </div>
+            
+            <!-- Business Contact -->
+            <div class="mt-8">
+                <div class="glass-morphism p-4 text-center">
+                    <h4 class="text-white font-semibold mb-2">
+                        <i class="fas fa-handshake mr-2"></i>
+                        <span id="partnership-title">업무 제휴 문의</span>
+                    </h4>
+                    <p class="text-gray-300">
+                        <i class="fas fa-envelope mr-2"></i>
+                        <a href="/cdn-cgi/l/email-protection#c5b6adacabebafa0acb1adb685a2a8a4aca9eba6aaa8" class="text-blue-300 hover:text-blue-100"><span class="__cf_email__" data-cfemail="73001b1a1d5d19161a071b0033141e121a1f5d101c1e">[email&#160;protected]</span></a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Multi-language support
+        const translations = {
+            ko: {
+                'app-title': '신오쿠보 스마트 가이드',
+                'map-title': '실시간 인기 맛집 지도',
+                'refresh-btn': '새로고침',
+                'top10-title': '실시간 인기 TOP 10',
+                'social-title': '소셜미디어 실시간 동향',
+                'ai-title': 'AI 맞춤 추천',
+                'partnership-title': '업무 제휴 문의'
+            },
+            en: {
+                'app-title': 'Shin-Okubo Smart Guide',
+                'map-title': 'Real-time Popular Restaurant Map',
+                'refresh-btn': 'Refresh',
+                'top10-title': 'Real-time Top 10',
+                'social-title': 'Social Media Live Feed',
+                'ai-title': 'AI Recommendations',
+                'partnership-title': 'Business Partnership'
+            },
+            ja: {
+                'app-title': '新大久保スマートガイド',
+                'map-title': 'リアルタイム人気店マップ',
+                'refresh-btn': '更新',
+                'top10-title': 'リアルタイムTOP 10',
+                'social-title': 'ソーシャル動向',
+                'ai-title': 'AI おすすめ',
+                'partnership-title': 'ビジネス提携'
+            },
+            zh: {
+                'app-title': '新大久保智能指南',
+                'map-title': '实时热门餐厅地图',
+                'refresh-btn': '刷新',
+                'top10-title': '实时热门TOP 10',
+                'social-title': '社交媒体动态',
+                'ai-title': 'AI 推荐',
+                'partnership-title': '商务合作'
+            },
+            th: {
+                'app-title': 'คู่มือชิน-โอคุโบะ',
+                'map-title': 'แผนที่ร้านอาหารยอดนิยม',
+                'refresh-btn': 'รีเฟรช',
+                'top10-title': 'ยอดนิยม TOP 10',
+                'social-title': 'โซเชียลมีเดียสด',
+                'ai-title': 'แนะนำโดย AI',
+                'partnership-title': 'ติดต่อธุรกิจ'
+            }
+        };
+
+        // Mock restaurant data
+        const restaurants = [
+            {
+                id: 1,
+                name: '화촌 삼겹살',
+                nameEn: 'Hwachon BBQ',
+                nameJa: 'ファチョン焼肉',
+                category: 'bbq',
+                rating: 4.8,
+                reviews: 1245,
+                lat: 35.7040,
+                lng: 139.7052,
+                socialScore: 95,
+                trending: true,
+                image: 'https://lh3.googleusercontent.com/gps-cs-s/AC9h4noYMCcIfKRpGWgLLZMWF7sqYaFosN5P7XWvMfv89NDB95pbXkV3VBXQKrfsp18nGDyz7kxT9RlidiX68O3pJNBZt6tTeLh-Hts9Q0M_a9ySPT9_BZ8nT-aEPyMgVImzc5iWdSpGxg=w114-h86-k-no'
+            },
+            {
+                id: 2,
+                name: '백종원의 본가',
+                nameEn: 'Paik Jong Won',
+                nameJa: 'ペクチョンウォンの本家',
+                category: 'korean',
+                rating: 4.6,
+                reviews: 892,
+                lat: 35.7038,
+                lng: 139.7048,
+                socialScore: 88,
+                trending: true
+            },
+            {
+                id: 3,
+                name: '신전떡볶이',
+                nameEn: 'Shinjeon Tteokbokki',
+                nameJa: '神田トッポッキ',
+                category: 'street',
+                rating: 4.4,
+                reviews: 567,
+                lat: 35.7042,
+                lng: 139.7055,
+                socialScore: 82,
+                trending: false
+            },
+            {
+                id: 4,
+                name: '신촌카페',
+                nameEn: 'Sinchon Cafe',
+                nameJa: '新村カフェ',
+                category: 'cafe',
+                rating: 4.7,
+                reviews: 734,
+                lat: 35.7036,
+                lng: 139.7050,
+                socialScore: 79,
+                trending: true
+            },
+            {
+                id: 5,
+                name: '막걸리 모노카타리',
+                nameEn: 'Makgeolli Story',
+                nameJa: 'マッコリものがたり',
+                category: 'korean',
+                rating: 4.5,
+                reviews: 445,
+                lat: 35.7044,
+                lng: 139.7053,
+                socialScore: 75,
+                trending: false
+            },
+            {
+                id: 6,
+                name: '또 来 반점',
+                nameEn: 'Tto Lai Restaurant',
+                nameJa: 'また来飯店',
+                category: 'korean',
+                rating: 4.3,
+                reviews: 328,
+                lat: 35.7041,
+                lng: 139.7047,
+                socialScore: 71,
+                trending: false
+            },
+            {
+                id: 7,
+                name: '고깃집 마을',
+                nameEn: 'BBQ Village',
+                nameJa: '焼肉村',
+                category: 'bbq',
+                rating: 4.6,
+                reviews: 623,
+                lat: 35.7039,
+                lng: 139.7054,
+                socialScore: 68,
+                trending: true
+            },
+            {
+                id: 8,
+                name: '서울김밥',
+                nameEn: 'Seoul Kimbap',
+                nameJa: 'ソウルキンパ',
+                category: 'street',
+                rating: 4.2,
+                reviews: 234,
+                lat: 35.7037,
+                lng: 139.7049,
+                socialScore: 65,
+                trending: false
+            },
+            {
+                id: 9,
+                name: '한강 치킨',
+                nameEn: 'Hangang Chicken',
+                nameJa: '漢江チキン',
+                category: 'korean',
+                rating: 4.4,
+                reviews: 445,
+                lat: 35.7043,
+                lng: 139.7051,
+                socialScore: 62,
+                trending: false
+            },
+            {
+                id: 10,
+                name: '부산 밀면',
+                nameEn: 'Busan Milmyeon',
+                nameJa: '釜山ミルミョン',
+                category: 'korean',
+                rating: 4.1,
+                reviews: 198,
+                lat: 35.7035,
+                lng: 139.7052,
+                socialScore: 58,
+                trending: false
+            }
+        ];
+
+        let map;
+        let markers = [];
+        let currentLanguage = 'ko';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            initCharts();
+            updateTopRestaurants();
+            updateSocialFeed();
+            updateAIRecommendations();
+            
+            // Auto refresh every 30 seconds
+            setInterval(refreshData, 30000);
+            
+            // Hide loading spinner after 2 seconds
+            setTimeout(() => {
+                document.getElementById('loading-indicator').style.display = 'none';
+            }, 2000);
+        });
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([35.7040, 139.7051], 17);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Add custom style
+            const style = document.createElement('style');
+            style.textContent = `
+                .leaflet-control-container .leaflet-top.leaflet-left {
+                    top: 10px;
+                }
+                .leaflet-popup-content-wrapper {
+                    background: rgba(31, 41, 55, 0.9);
+                    color: white;
+                    border-radius: 12px;
+                    backdrop-filter: blur(10px);
+                }
+                .leaflet-popup-tip {
+                    background: rgba(31, 41, 55, 0.9);
+                }
+            `;
+            document.head.appendChild(style);
+            
+            updateMapMarkers();
+        }
+
+        // Update map markers
+        function updateMapMarkers() {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Add new markers
+            restaurants.forEach(restaurant => {
+                const icon = L.divIcon({
+                    className: 'restaurant-marker',
+                    html: `<div style="width: 30px; height: 30px; background: ${restaurant.trending ? 'linear-gradient(45deg, #ff6b6b, #4ecdc4)' : 'linear-gradient(45deg, #a0a0a0, #707070)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">${restaurant.socialScore}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                
+                const marker = L.marker([restaurant.lat, restaurant.lng], {icon: icon})
+                    .bindPopup(`
+                        <div class="p-3">
+                            <h3 class="font-bold text-lg mb-2">${restaurant.name}</h3>
+                            <div class="flex items-center mb-2">
+                                <span class="text-yellow-400">${'★'.repeat(Math.floor(restaurant.rating))}</span>
+                                <span class="ml-2">${restaurant.rating} (${restaurant.reviews})</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="inline-block px-2 py-1 bg-blue-500 text-white rounded-full text-xs">${restaurant.category}</span>
+                                ${restaurant.trending ? '<span class="inline-block px-2 py-1 bg-red-500 text-white rounded-full text-xs ml-1">HOT</span>' : ''}
+                            </div>
+                            <div class="text-sm text-gray-300">
+                                소셜 점수: ${restaurant.socialScore}/100
+                            </div>
+                        </div>
+                    `);
+                
+                markers.push(marker);
+                marker.addTo(map);
+            });
+        }
+
+        // Initialize charts
+        function initCharts() {
+            // Category Chart
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            const categoryData = {
+                korean: restaurants.filter(r => r.category === 'korean').length,
+                bbq: restaurants.filter(r => r.category === 'bbq').length,
+                cafe: restaurants.filter(r => r.category === 'cafe').length,
+                street: restaurants.filter(r => r.category === 'street').length
+            };
+            
+            new Chart(categoryCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['한식', '고기', '카페', '분식'],
+                    datasets: [{
+                        data: [categoryData.korean, categoryData.bbq, categoryData.cafe, categoryData.street],
+                        backgroundColor: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { 
+                            display: false,
+                            beginAtZero: true 
+                        },
+                        x: { 
+                            ticks: { color: 'white', font: { size: 10 } },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // Rating Chart
+            const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+            new Chart(ratingCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['4.0+', '4.3+', '4.6+', '4.8+'],
+                    datasets: [{
+                        data: [
+                            restaurants.filter(r => r.rating >= 4.0).length,
+                            restaurants.filter(r => r.rating >= 4.3).length,
+                            restaurants.filter(r => r.rating >= 4.6).length,
+                            restaurants.filter(r => r.rating >= 4.8).length
+                        ],
+                        backgroundColor: ['#ffd93d', '#6bcf7f', '#4d96ff', '#ff6b6b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { 
+                            display: false,
+                            beginAtZero: true 
+                        },
+                        x: { 
+                            ticks: { color: 'white', font: { size: 10 } },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update top restaurants
+        function updateTopRestaurants() {
+            const sortedRestaurants = restaurants
+                .sort((a, b) => b.socialScore - a.socialScore)
+                .slice(0, 10);
+            
+            const container = document.getElementById('top-restaurants');
+            container.innerHTML = '';
+            
+            sortedRestaurants.forEach((restaurant, index) => {
+                const card = document.createElement('div');
+                card.className = 'restaurant-card glass-morphism p-3 slide-in';
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                ${index + 1}
+                            </div>
+                            <div>
+                                <h4 class="text-white font-medium text-sm">${restaurant.name}</h4>
+                                <div class="flex items-center text-xs text-gray-300">
+                                    <span class="text-yellow-400">★${restaurant.rating}</span>
+                                    <span class="ml-2">(${restaurant.reviews})</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-green-400 font-bold text-sm">${restaurant.socialScore}</div>
+                            ${restaurant.trending ? '<div class="text-red-400 text-xs">🔥 HOT</div>' : ''}
+                        </div>
+                    </div>
+                `;
+                
+                card.addEventListener('click', () => {
+                    map.setView([restaurant.lat, restaurant.lng], 19);
+                    markers.find(m => m.getLatLng().lat === restaurant.lat)?.openPopup();
+                });
+                
+                container.appendChild(card);
+            });
+        }
+
+        // Update social feed
+        function updateSocialFeed() {
+            const socialPosts = [
+                { platform: 'twitter', text: '신오쿠보 화촌 삼겹살 진짜 맛있다 🥩', time: '2분 전', engagement: 45 },
+                { platform: 'facebook', text: '백종원 본가에서 친구들과 회식!', time: '5분 전', engagement: 23 },
+                { platform: 'twitter', text: '신전떡볶이 오늘도 줄 서서 먹었음 ㅠㅠ', time: '8분 전', engagement: 67 },
+                { platform: 'facebook', text: '신촌카페 1리터 아메리카노 도전 성공!', time: '12분 전', engagement: 34 }
+            ];
+            
+            const container = document.getElementById('social-feed');
+            container.innerHTML = '';
+            
+            socialPosts.forEach((post, index) => {
+                const postElement = document.createElement('div');
+                postElement.className = 'bg-gray-800 p-3 rounded-lg slide-in';
+                postElement.style.animationDelay = `${index * 0.2}s`;
+                postElement.innerHTML = `
+                    <div class="flex items-start space-x-2">
+                        <i class="fab fa-${post.platform} text-${post.platform === 'twitter' ? 'blue-400' : 'blue-600'} mt-1"></i>
+                        <div class="flex-1">
+                            <p class="text-white text-sm">${post.text}</p>
+                            <div class="flex items-center justify-between mt-2 text-xs text-gray-400">
+                                <span>${post.time}</span>
+                                <span>❤️ ${post.engagement}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(postElement);
+            });
+        }
+
+        // Update AI recommendations
+        function updateAIRecommendations() {
+            const recommendations = [
+                { type: '트렌딩', text: '화촌 삼겹살이 현재 가장 인기있는 맛집입니다', confidence: 95 },
+                { type: '신메뉴', text: '백종원 본가에서 새로운 메뉴가 출시되었습니다', confidence: 87 },
+                { type: '할인', text: '신전떡볶이에서 런치타임 할인 진행 중', confidence: 78 },
+                { type: '추천', text: '카페 좋아하시면 신촌카페를 추천드립니다', confidence: 92 }
+            ];
+            
+            const container = document.getElementById('ai-recommendations');
+            container.innerHTML = '';
+            
+            recommendations.forEach((rec, index) => {
+                const recElement = document.createElement('div');
+                recElement.className = 'bg-purple-900 bg-opacity-50 p-3 rounded-lg slide-in';
+                recElement.style.animationDelay = `${index * 0.15}s`;
+                recElement.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="px-2 py-1 bg-purple-600 text-white text-xs rounded-full">${rec.type}</span>
+                                <span class="text-xs text-gray-300">${rec.confidence}% 신뢰도</span>
+                            </div>
+                            <p class="text-white text-sm">${rec.text}</p>
+                        </div>
+                        <i class="fas fa-robot text-purple-400"></i>
+                    </div>
+                `;
+                container.appendChild(recElement);
+            });
+        }
+
+        // Change language
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Update language buttons
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.className = 'language-btn px-2 py-1 text-xs bg-gray-600 text-white rounded';
+            });
+            event.target.className = 'language-btn px-2 py-1 text-xs bg-blue-500 text-white rounded';
+            
+            // Update text content
+            const texts = translations[lang];
+            if (texts) {
+                Object.keys(texts).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) {
+                        element.textContent = texts[key];
+                    }
+                });
+            }
+            
+            // Update restaurant names on map
+            updateMapMarkers();
+        }
+
+        // Filter restaurants
+        function filterRestaurants() {
+            const filter = document.getElementById('filter-select').value;
+            
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Filter restaurants
+            const filteredRestaurants = filter === 'all' 
+                ? restaurants 
+                : restaurants.filter(r => r.category === filter);
+            
+            // Add filtered markers
+            filteredRestaurants.forEach(restaurant => {
+                const icon = L.divIcon({
+                    className: 'restaurant-marker',
+                    html: `<div style="width: 30px; height: 30px; background: ${restaurant.trending ? 'linear-gradient(45deg, #ff6b6b, #4ecdc4)' : 'linear-gradient(45deg, #a0a0a0, #707070)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">${restaurant.socialScore}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                
+                const marker = L.marker([restaurant.lat, restaurant.lng], {icon: icon})
+                    .bindPopup(`
+                        <div class="p-3">
+                            <h3 class="font-bold text-lg mb-2">${restaurant.name}</h3>
+                            <div class="flex items-center mb-2">
+                                <span class="text-yellow-400">${'★'.repeat(Math.floor(restaurant.rating))}</span>
+                                <span class="ml-2">${restaurant.rating} (${restaurant.reviews})</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="inline-block px-2 py-1 bg-blue-500 text-white rounded-full text-xs">${restaurant.category}</span>
+                                ${restaurant.trending ? '<span class="inline-block px-2 py-1 bg-red-500 text-white rounded-full text-xs ml-1">HOT</span>' : ''}
+                            </div>
+                            <div class="text-sm text-gray-300">
+                                소셜 점수: ${restaurant.socialScore}/100
+                            </div>
+                        </div>
+                    `);
+                
+                markers.push(marker);
+                marker.addTo(map);
+            });
+        }
+
+        // Refresh data
+        function refreshData() {
+            // Show loading indicator
+            document.getElementById('loading-indicator').style.display = 'block';
+            
+            // Simulate API calls with random data updates
+            restaurants.forEach(restaurant => {
+                restaurant.socialScore += Math.floor(Math.random() * 6) - 3; // -3 to +3 change
+                restaurant.socialScore = Math.max(0, Math.min(100, restaurant.socialScore)); // Keep in 0-100 range
+                restaurant.trending = Math.random() > 0.7; // 30% chance to be trending
+            });
+            
+            // Update UI
+            setTimeout(() => {
+                updateMapMarkers();
+                updateTopRestaurants();
+                updateSocialFeed();
+                updateAIRecommendations();
+                document.getElementById('loading-indicator').style.display = 'none';
+            }, 1500);
+        }
+
+        // PWA installation
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install button
+            const installBtn = document.createElement('button');
+            installBtn.textContent = '앱 설치';
+            installBtn.className = 'fixed bottom-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg z-1000';
+            installBtn.addEventListener('click', () => {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        installBtn.remove();
+                    }
+                    deferredPrompt = null;
+                });
+            });
+            document.body.appendChild(installBtn);
+        });
+    </script>
+</body>
+</html>
+    <script id="html_badge_script1">
+        window.__genspark_remove_badge_link = "https://www.genspark.ai/api/html_badge/" +
+            "remove_badge?token=To%2FBnjzloZ3UfQdcSaYfDl6s20pQvH5R8aHr1ac7qaGc%2BBQ2yI531iflQKG7KJJ39NaeZ8ec280TYgZCpl7h4tk7tinPgKz2rXmNLD%2Bl5Fa7rHoRReStVhLZOyHFqTsaIMIwQDRmAEfQAcgychDpKqUaFqFbxO4qZ%2BlqAbwutIx1jYBmyyLe%2F99J6fGRTEUGo7BnG%2Bmum7vdffg5CiVSDvGRSh4ruHAM68WUkvPaRX5lfGTwRmp88HGxI1DA%2FqZeAZwRvRwIzwJytqFX%2FcCuvHqdXXuE8ISMZoegD8%2Btm3oXf6tNHVF%2FQ%2Bd3NGEUw1mf2IKHmeOhlIjyZUTrCmmicVcDIoULEuo%2BrryaVU1ducw26ZJ%2FzIk0MwV7dh8aRR1UV91x%2FYDjmg%2FILoUufuVhXKjFwVAn48%2FUOFYNEsW1cipOMrb5hEZcPC7Pm%2F56V%2BqrQVlOZLakUAfRexMvj0MX7csk0ugm67i6zlmY0A3rmvXlGrVE7x4eivxGuDBlev%2BK%2BUjAiMfOuGlgWAF4H26jqA%3D%3D";
+        window.__genspark_locale = "ko-KR";
+        window.__genspark_token = "To/BnjzloZ3UfQdcSaYfDl6s20pQvH5R8aHr1ac7qaGc+BQ2yI531iflQKG7KJJ39NaeZ8ec280TYgZCpl7h4tk7tinPgKz2rXmNLD+l5Fa7rHoRReStVhLZOyHFqTsaIMIwQDRmAEfQAcgychDpKqUaFqFbxO4qZ+lqAbwutIx1jYBmyyLe/99J6fGRTEUGo7BnG+mum7vdffg5CiVSDvGRSh4ruHAM68WUkvPaRX5lfGTwRmp88HGxI1DA/qZeAZwRvRwIzwJytqFX/cCuvHqdXXuE8ISMZoegD8+tm3oXf6tNHVF/Q+d3NGEUw1mf2IKHmeOhlIjyZUTrCmmicVcDIoULEuo+rryaVU1ducw26ZJ/zIk0MwV7dh8aRR1UV91x/YDjmg/ILoUufuVhXKjFwVAn48/
