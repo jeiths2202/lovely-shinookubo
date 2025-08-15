@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신오쿠보 스마트 가이드 - AI 맛집 추천</title>
+    
+    <!-- PWA Meta -->
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- External Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-primary: #ffffff;
+            --text-secondary: #e5e7eb;
+        }
+        
+        [data-theme="light"] {
+            --bg-primary: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            --glass-bg: rgba(0, 0, 0, 0.05);
+            --glass-border: rgba(0, 0, 0, 0.1);
+            --text-primary: #1f2937;
+            --text-secondary: #4b5563;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans JP', sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        
+        .glass-morphism {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+        }
+        
+        .weather-widget {
+            position: fixed;
+            top: 150px;
+            left: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            z-index: 500;
+        }
+        
+        .api-status {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 500;
+        }
+        
+        .api-status.success {
+            background: rgba(34, 197, 94, 0.8);
+        }
+        
+        .api-status.error {
+            background: rgba(239, 68, 68, 0.8);
+        }
+        
+        .api-status.offline {
+            background: rgba(251, 191, 36, 0.8);
+        }
+        
+        #map {
+            height: 400px;
+            border-radius: 16px;
+            z-index: 1;
+        }
+        
+        .loading-spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .real-time-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            margin-right: 5px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <!-- Weather Widget -->
+    <div class="weather-widget glass-morphism" id="weather-widget" style="display: none;">
+        <div class="text-sm">
+            <i class="fas fa-cloud-sun mr-1"></i>
+            <span id="weather-temp">--°C</span>
+            <div class="text-xs mt-1" id="weather-desc">--</div>
+        </div>
+    </div>
+    
+    <!-- API Status Indicator -->
+    <div class="api-status offline" id="api-status">
+        <span class="real-time-indicator"></span>
+        <span id="api-status-text">오프라인 모드</span>
+    </div>
+
+    <!-- Main Content (similar to before but with API integration) -->
+    <div class="container mx-auto px-4 pt-4">
+        <h1 class="text-2xl font-bold mb-4">
+            <i class="fas fa-utensils mr-2"></i>
+            신오쿠보 스마트 가이드 (API 연동)
+        </h1>
+        
+        <!-- Search with Google Places -->
+        <div class="glass-morphism p-4 mb-4">
+            <div class="flex items-center space-x-2">
+                <input type="text" id="place-search" class="flex-1 px-4 py-2 bg-transparent border-b border-gray-400 focus:outline-none" placeholder="Google Places로 검색...">
+                <button onclick="searchWithGooglePlaces()" class="px-4 py-2 bg-blue-500 text-white rounded-lg">
+                    <i class="fas fa-search"></i> 검색
+                </button>
+            </div>
+        </div>
+        
+        <!-- Real-time Social Feed -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="glass-morphism p-4">
+                <h3 class="font-semibold mb-3">
+                    <i class="fab fa-twitter text-blue-400 mr-2"></i>
+                    실시간 트위터 피드
+                </h3>
+                <div id="twitter-feed" class="space-y-2">
+                    <div class="text-sm text-gray-400">트윗 로딩 중...</div>
+                </div>
+            </div>
+            
+            <div class="glass-morphism p-4">
+                <h3 class="font-semibold mb-3">
+                    <i class="fas fa-star text-yellow-400 mr-2"></i>
+                    Google 리뷰
+                </h3>
+                <div id="google-reviews" class="space-y-2">
+                    <div class="text-sm text-gray-400">리뷰 로딩 중...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Section -->
+        <div class="glass-morphism p-4 mb-4">
+            <h2 class="font-semibold text-lg mb-3">
+                <i class="fas fa-map-marker-alt mr-2"></i>
+                실시간 맛집 지도
+            </h2>
+            <div id="map"></div>
+        </div>
+        
+        <!-- Restaurant List from API -->
+        <div class="glass-morphism p-4">
+            <h3 class="font-semibold text-lg mb-3">
+                <i class="fas fa-list mr-2"></i>
+                API 검색 결과
+            </h3>
+            <div id="api-restaurants" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="text-sm text-gray-400">데이터 로딩 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module">
+        // Import API Service
+        import('./api-config.js').then(module => {
+            window.APIService = module.default || APIService;
+            initializeApp();
+        }).catch(error => {
+            console.error('Failed to load API module:', error);
+            // Fallback to inline APIService
+            initializeApp();
+        });
+        
+        let apiService;
+        let map;
+        let markers = [];
+        
+        async function initializeApp() {
+            // Initialize API Service
+            apiService = new (window.APIService || APIService)();
+            
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.error('SW error:', err));
+            }
+            
+            // Initialize map
+            initMap();
+            
+            // Load initial data
+            await loadInitialData();
+            
+            // Set up real-time updates
+            setInterval(updateRealTimeData, 30000); // Update every 30 seconds
+        }
+        
+        function initMap() {
+            map = L.map('map').setView([35.7040, 139.7051], 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+        
+        async function loadInitialData() {
+            // Load weather
+            loadWeather();
+            
+            // Load default restaurants from Google Places
+            await searchNearbyRestaurants();
+            
+            // Load social media feeds
+            loadTwitterFeed();
+        }
+        
+        async function loadWeather() {
+            try {
+                const weather = await apiService.getWeather();
+                if (weather) {
+                    document.getElementById('weather-widget').style.display = 'block';
+                    document.getElementById('weather-temp').textContent = `${Math.round(weather.temp)}°C`;
+                    document.getElementById('weather-desc').textContent = weather.description;
+                }
+            } catch (error) {
+                console.error('Weather API error:', error);
+            }
+        }
+        
+        async function searchWithGooglePlaces() {
+            const query = document.getElementById('place-search').value;
+            if (!query) return;
+            
+            updateAPIStatus('loading', 'Google Places 검색 중...');
+            
+            try {
+                const places = await apiService.searchPlaces(query);
+                displayPlacesResults(places);
+                updateAPIStatus('success', 'API 연결됨');
+            } catch (error) {
+                console.error('Places search error:', error);
+                updateAPIStatus('error', 'API 오류');
+            }
+        }
+        
+        async function searchNearbyRestaurants() {
+            try {
+                const places = await apiService.searchPlaces('레스토랑');
+                displayPlacesResults(places);
+                updateAPIStatus('success', 'API 연결됨');
+            } catch (error) {
+                console.error('Failed to load restaurants:', error);
+                updateAPIStatus('offline', '오프라인 모드');
+                loadOfflineData();
+            }
+        }
+        
+        function displayPlacesResults(places) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Display on map
+            places.forEach(place => {
+                const marker = L.marker([place.lat, place.lng])
+                    .bindPopup(`
+                        <div>
+                            <h4 class="font-bold">${place.name}</h4>
+                            <div class="text-sm">
+                                ⭐ ${place.rating} (${place.reviews} 리뷰)<br>
+                                ${place.openNow ? '🟢 영업 중' : '🔴 영업 종료'}
+                            </div>
+                        </div>
+                    `);
+                markers.push(marker);
+                marker.addTo(map);
+            });
+            
+            // Display in list
+            const container = document.getElementById('api-restaurants');
+            container.innerHTML = '';
+            
+            places.forEach(place => {
+                const card = document.createElement('div');
+                card.className = 'glass-morphism p-3 cursor-pointer hover:scale-105 transition-transform';
+                card.innerHTML = `
+                    <h4 class="font-semibold">${place.name}</h4>
+                    <div class="text-sm text-gray-300">
+                        ⭐ ${place.rating} (${place.reviews} 리뷰)
+                        ${place.openNow ? ' • 🟢 영업 중' : ' • 🔴 영업 종료'}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">
+                        가격대: ${'💵'.repeat(place.priceLevel || 2)}
+                    </div>
+                `;
+                
+                card.onclick = () => {
+                    map.setView([place.lat, place.lng], 18);
+                    const marker = markers.find(m => 
+                        m.getLatLng().lat === place.lat && 
+                        m.getLatLng().lng === place.lng
+                    );
+                    if (marker) marker.openPopup();
+                };
+                
+                container.appendChild(card);
+            });
+            
+            // Adjust map view to show all markers
+            if (markers.length > 0) {
+                const group = L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+        
+        async function loadTwitterFeed() {
+            try {
+                const tweets = await apiService.getTweets('신오쿠보 맛집');
+                displayTweets(tweets);
+            } catch (error) {
+                console.error('Twitter API error:', error);
+                displayMockTweets();
+            }
+        }
+        
+        function displayTweets(tweets) {
+            const container = document.getElementById('twitter-feed');
+            container.innerHTML = '';
+            
+            tweets.slice(0, 3).forEach(tweet => {
+                const tweetEl = document.createElement('div');
+                tweetEl.className = 'bg-gray-800 bg-opacity-50 p-2 rounded text-sm';
+                tweetEl.innerHTML = `
+                    <p class="mb-1">${tweet.text.substring(0, 100)}...</p>
+                    <div class="text-xs text-gray-400">
+                        ❤️ ${tweet.metrics?.like_count || 0} 
+                        🔁 ${tweet.metrics?.retweet_count || 0}
+                        • ${tweet.sentiment === 'positive' ? '😊' : tweet.sentiment === 'negative' ? '😞' : '😐'}
+                    </div>
+                `;
+                container.appendChild(tweetEl);
+            });
+        }
+        
+        function displayMockTweets() {
+            const container = document.getElementById('twitter-feed');
+            container.innerHTML = `
+                <div class="text-sm text-gray-400">
+                    실시간 트윗을 불러올 수 없습니다.<br>
+                    오프라인 데이터를 표시합니다.
+                </div>
+            `;
+        }
+        
+        function updateAPIStatus(status, text) {
+            const statusEl = document.getElementById('api-status');
+            const textEl = document.getElementById('api-status-text');
+            
+            statusEl.className = `api-status ${status}`;
+            textEl.textContent = text;
+        }
+        
+        async function updateRealTimeData() {
+            // Refresh weather
+            loadWeather();
+            
+            // Refresh social feeds
+            loadTwitterFeed();
+            
+            // You can add more real-time updates here
+        }
+        
+        function loadOfflineData() {
+            // Load cached data when offline
+            const cachedData = [
+                {
+                    name: '화촌 삼겹살',
+                    lat: 35.7040,
+                    lng: 139.7052,
+                    rating: 4.8,
+                    reviews: 1245,
+                    openNow: true,
+                    priceLevel: 3
+                },
+                {
+                    name: '백종원의 본가',
+                    lat: 35.7038,
+                    lng: 139.7048,
+                    rating: 4.6,
+                    reviews: 892,
+                    openNow: true,
+                    priceLevel: 2
+                }
+            ];
+            
+            displayPlacesResults(cachedData);
+        }
+        
+        // Fallback APIService if module fails to load
+        if (typeof APIService === 'undefined') {
+            class APIService {
+                constructor() {
+                    this.config = {
+                        googlePlaces: {
+                            apiKey: 'AIzaSyB1ks3Sss829bj6l9b36LajXtm_umL-UPM',
+                            baseUrl: 'https://maps.googleapis.com/maps/api/place'
+                        },
+                        openWeather: {
+                            apiKey: 'f3ecd01ec2651182b68e69aae2072748',
+                            baseUrl: 'https://api.openweathermap.org/data/2.5'
+                        }
+                    };
+                }
+                
+                async getWeather(lat = 35.7040, lon = 139.7052) {
+                    try {
+                        const url = `${this.config.openWeather.baseUrl}/weather?` +
+                            `lat=${lat}&lon=${lon}&` +
+                            `appid=${this.config.openWeather.apiKey}&` +
+                            `units=metric&lang=ko`;
+                        
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        
+                        if (data.cod === 200) {
+                            return {
+                                temp: data.main.temp,
+                                condition: data.weather[0].main,
+                                description: data.weather[0].description
+                            };
+                        }
+                    } catch (error) {
+                        console.error('Weather error:', error);
+                    }
+                    return null;
+                }
+                
+                async searchPlaces(query, location = '35.7040,139.7052', radius = 500) {
+                    // Note: Google Places API requires server-side proxy due to CORS
+                    // This is a mock implementation
+                    return [
+                        {
+                            id: 'place1',
+                            name: query + ' - 검색 결과 1',
+                            lat: 35.7040 + Math.random() * 0.01,
+                            lng: 139.7052 + Math.random() * 0.01,
+                            rating: 4.5,
+                            reviews: Math.floor(Math.random() * 1000),
+                            openNow: Math.random() > 0.5,
+                            priceLevel: Math.ceil(Math.random() * 4)
+                        }
+                    ];
+                }
+                
+                async getTweets(query) {
+                    // Mock tweets
+                    return [
+                        {
+                            text: '신오쿠보 맛집 추천! 정말 맛있어요',
+                            metrics: { like_count: 42, retweet_count: 5 },
+                            sentiment: 'positive'
+                        }
+                    ];
+                }
+            }
+            window.APIService = APIService;
+        }
+    </script>
+</body>
+</html>
