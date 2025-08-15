@@ -1,11 +1,1 @@
-# Netlify Redirects Configuration
-
-# API Proxy redirects
-/api/places/*  http://34.58.110.50:7077/api/places/:splat  200
-/api/weather   http://34.58.110.50:7077/api/weather  200
-/api/twitter   http://34.58.110.50:7077/api/twitter  200
-/api/status    http://34.58.110.50:7077/api/status  200
-/health        http://34.58.110.50:7077/health  200
-
-# SPA fallback - all routes to index-final.html
-/*    /index-final.html   200
+/*  http://34.58.110.50:7077  301
