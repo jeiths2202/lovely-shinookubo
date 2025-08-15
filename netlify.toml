@@ -1,8 +1,0 @@
-# Netlify Configuration for Simple Redirect
-
-# All requests should be redirected to the proxy server
-[[redirects]]
-  from = "/*"
-  to = "http://34.58.110.50:7077/:splat"
-  status = 200
-  force = true
